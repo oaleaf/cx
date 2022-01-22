@@ -1,0 +1,337 @@
+use crate::ast::*;
+use crate::ast::name::*;
+use crate::ast::comma_list::*;
+use crate::lexer::*;
+
+grammar<'input>(input: &'input str);
+
+pub SourceFileRoot: SourceFileRoot<'input> = {
+    <Item*> => SourceFileRoot::new(<>),
+}
+
+Item: Item<'input> = {
+    UsnStmt => Item::UsnStmt(<>),
+    FnDecl => Item::Fn(<>),
+
+    Stmt => Item::Stmt(<>),
+
+    Newline => Item::None,
+};
+
+UsnStmt: UsnStmt<'input> = UsnKw Path Newline => UsnStmt::new(<>);
+
+Path: Path<'input> = {
+    Colon2? (Name Colon2)* Name => Path::new(<>),
+};
+
+#[inline]
+Token<A>: SourceCodeSpan = {
+    <l: @L> A <r: @R> => SourceCodeSpan::new(l.try_into().unwrap(), r.try_into().unwrap()),
+}
+
+#[inline]
+OpenParen: OpenParen = Token<"("> => FromSpan::from_span(<>);
+#[inline]
+CloseParen: CloseParen = Token<")"> => FromSpan::from_span(<>);
+#[inline]
+OpenBracket: OpenBracket = Token<"["> => FromSpan::from_span(<>);
+#[inline]
+CloseBracket: CloseBracket = Token<"]"> => FromSpan::from_span(<>);
+#[inline]
+OpenBrace: OpenBrace = Token<"{"> => FromSpan::from_span(<>);
+#[inline]
+CloseBrace: CloseBrace = Token<"}"> => FromSpan::from_span(<>);
+#[inline]
+Dot: Dot = Token<"."> => FromSpan::from_span(<>);
+#[inline]
+Comma: Comma = Token<","> => FromSpan::from_span(<>);
+#[inline]
+Colon: Colon = Token<":"> => FromSpan::from_span(<>);
+#[inline]
+Colon2: Colon2 = Token<"::"> => FromSpan::from_span(<>);
+#[inline]
+Hash: Hash = Token<"#"> => FromSpan::from_span(<>);
+#[inline]
+Plus: Plus = Token<"+"> => FromSpan::from_span(<>);
+#[inline]
+Minus: Minus = Token<"-"> => FromSpan::from_span(<>);
+#[inline]
+Asterisk: Asterisk = Token<"*"> => FromSpan::from_span(<>);
+#[inline]
+Slash: Slash = Token<"/"> => FromSpan::from_span(<>);
+#[inline]
+Percent: Percent = Token<"%"> => FromSpan::from_span(<>);
+#[inline]
+Amp2: Amp2 = Token<"&&"> => FromSpan::from_span(<>);
+#[inline]
+Pipe2: Pipe2 = Token<"||"> => FromSpan::from_span(<>);
+#[inline]
+Bang: Bang = Token<"!"> => FromSpan::from_span(<>);
+#[inline]
+At: At = Token<"@"> => FromSpan::from_span(<>);
+
+#[inline]
+Eq: Eq = Token<"="> => FromSpan::from_span(<>);
+
+#[inline]
+Lt: Lt = Token<"<"> => FromSpan::from_span(<>);
+#[inline]
+Gt: Gt = Token<">"> => FromSpan::from_span(<>);
+#[inline]
+Lte: Lte = Token<"<="> => FromSpan::from_span(<>);
+#[inline]
+Gte: Gte = Token<">="> => FromSpan::from_span(<>);
+
+#[inline]
+Eq2: Eq2 = Token<"=="> => FromSpan::from_span(<>);
+#[inline]
+BangEq: BangEq = Token<"!="> => FromSpan::from_span(<>);
+
+#[inline]
+Newline: Newline = Token<"newline"> => FromSpan::from_span(<>);
+#[inline]
+NewlineContinuation: NewlineContinuation = Token<"newline continuation"> => FromSpan::from_span(<>);
+
+#[inline]
+FnKw: FnKw = Token<"fn"> => FromSpan::from_span(<>);
+#[inline]
+StructKw: StructKw = Token<"struct"> => FromSpan::from_span(<>);
+#[inline]
+UsnKw: UsnKw = Token<"usn"> => FromSpan::from_span(<>);
+
+FnDecl: FnDecl<'input> = {
+    <fn_kw: FnKw> <name: Name> <args: FnParams> <ret_ty: RetTy?> <body: Block> => FnDecl::new(fn_kw, name, args, ret_ty, body),
+}
+
+#[inline]
+FnParams: FnParams<'input> = {
+    <open_paren: OpenParen> <args: FnParamList> <close_paren: CloseParen> => FnParams::new(open_paren, args, close_paren),
+}
+
+FnParamList: FnParamList<'input> = {
+    CommaListChain<PosFnParam, DefaultFnParam> => FnParamList::new(<>),
+}
+
+PosFnParam: PosFnParam<'input> = {
+    Name Colon? FnParamTy => PosFnParam::new(<>),
+}
+
+DefaultFnParam: DefaultFnParam<'input> = {
+    Name (Colon? FnParamTy)? Eq Expr => DefaultFnParam::new(<>),
+}
+
+#[inline]
+FnParamTy = Ty;
+
+Ty: Ty<'input> = {
+    <name: Name> => Ty::plain(name),
+}
+
+RetTy: RetTy<'input> = {
+    Colon? Ty => RetTy::new(<>),
+}
+
+Block: Block<'input> = {
+    OpenBrace ItemList CloseBrace => Block::new(<>),
+}
+
+#[inline]
+ItemList: ItemList<'input> = Item* => ItemList::new(<>);
+
+#[inline]
+StmtList: StmtList<'input> = {
+    Stmt* => StmtList::new(<>),
+}
+
+Stmt: Stmt<'input> = {
+    <expr: Expr> Newline => Stmt::Expr(expr),
+}
+
+#[inline]
+Box<A>: Box<A> = A => Box::new(<>);
+
+Expr: Expr<'input> = {
+    #[precedence(level = "0")]
+    Block => Expr::Block(<>),
+    #[precedence(level = "0")]
+    Name => Expr::Name(<>),
+    #[precedence(level = "0")]
+    Number => Expr::Number(<>),
+
+    #[precedence(level = "0")]
+    OpenParen CommaList<Expr> CloseParen => Expr::Tuple(<>),
+
+    #[precedence(level = "1")]
+    <Box<Expr>> NewlineContinuation? <Dot> <Name> => Expr::Field(<>),
+
+//    #[precedence(level = "1")]
+//    Box<Expr> OpenBracket Box<Expr> CloseBracket => Expr::Index(<>),
+
+//    #[precedence(level = "1")]
+//    Box<Expr> Dot  FnArgs => Expr::Call(<>),
+
+//    #[precedence(level = "2")]
+//    ToPrefixUnaryOp<Plus> Box<Expr> => Expr::UnaryOp(<>),
+//    #[precedence(level = "2")]
+//    ToPrefixUnaryOp<Minus> Box<Expr> => Expr::UnaryOp(<>),
+    #[precedence(level = "2")]
+    #[assoc(side = "right")]
+    ToPrefixUnaryOp<Bang> Box<Expr> => Expr::PrefixUnaryOp(<>),
+
+    #[precedence(level = "3")]
+    #[assoc(side = "left")]
+    <Box<Expr>> NewlineContinuation? <ToInfixBinOp<Asterisk>> <Box<Expr>> => Expr::InfixBinOp(<>),
+    #[precedence(level = "3")]
+    #[assoc(side = "left")]
+    <Box<Expr>>  NewlineContinuation? <ToInfixBinOp<Slash>> <Box<Expr>> => Expr::InfixBinOp(<>),
+    #[precedence(level = "3")]
+    #[assoc(side = "left")]
+    Box<Expr> NewlineContinuation? ToInfixBinOp<Percent> Box<Expr> => Expr::InfixBinOp(<>),
+
+    #[precedence(level = "4")]
+    #[assoc(side = "left")]
+    Box<Expr> NewlineContinuation? ToInfixBinOp<Plus> Box<Expr> => Expr::InfixBinOp(<>),
+    #[precedence(level = "4")]
+    #[assoc(side = "left")]
+    Box<Expr> NewlineContinuation? ToInfixBinOp<Minus> Box<Expr> => Expr::InfixBinOp(<>),
+
+    #[precedence(level = "5")]
+    #[assoc(side = "left")]
+    Box<Expr> NewlineContinuation? ToInfixBinOp<Lt> Box<Expr> => Expr::InfixBinOp(<>),
+    #[precedence(level = "5")]
+    #[assoc(side = "left")]
+    Box<Expr> NewlineContinuation? ToInfixBinOp<Gt> Box<Expr> => Expr::InfixBinOp(<>),
+    #[precedence(level = "5")]
+    #[assoc(side = "left")]
+    Box<Expr> NewlineContinuation? ToInfixBinOp<Lte> Box<Expr> => Expr::InfixBinOp(<>),
+    #[precedence(level = "5")]
+    #[assoc(side = "left")]
+    Box<Expr> NewlineContinuation? ToInfixBinOp<Gte> Box<Expr> => Expr::InfixBinOp(<>),
+
+    #[precedence(level = "6")]
+    #[assoc(side = "left")]
+    Box<Expr> NewlineContinuation? ToInfixBinOp<Eq2> Box<Expr> => Expr::InfixBinOp(<>),
+    #[precedence(level = "6")]
+    #[assoc(side = "left")]
+    Box<Expr> NewlineContinuation? ToInfixBinOp<BangEq> Box<Expr> => Expr::InfixBinOp(<>),
+}
+
+// possible number sufixes: (i8|u8|i16|u16|i32|u32|i64|u64|usize|isize)?
+
+Number: Number<'input> = {
+    // bin
+    <l: @L> <v: "bin num"> <r: @R>
+        => Number::new_bin(v, SourceCodeSpan::new(l.try_into().unwrap(), r.try_into().unwrap())),
+    // oct
+    <l: @L> <v: "oct num"> <r: @R>
+        => Number::new_oct(v, SourceCodeSpan::new(l.try_into().unwrap(), r.try_into().unwrap())),
+    // dec
+    <l: @L>  <v: "dec num"> <r: @R>
+        => Number::new_dec(v, SourceCodeSpan::new(l.try_into().unwrap(), r.try_into().unwrap())),
+    // hex
+    <l: @L>  <v: "hex num"> <r: @R>
+        => Number::new_hex(v, SourceCodeSpan::new(l.try_into().unwrap(), r.try_into().unwrap())),
+};
+
+#[inline]
+ToInfixBinOp<R>: InfixBinOp = R => InfixBinOp::from(<>);
+#[inline]
+ToPrefixUnaryOp<R>: PrefixUnaryOp = R => PrefixUnaryOp::from(<>);
+
+FnArgs: FnArgs<'input> = {
+    <open_paren: OpenParen> <args: FnArgList> <close_paren: CloseParen> => FnArgs::new(open_paren, args, close_paren),
+}
+
+FnArgList: FnArgList<'input> = {
+    CommaListChain<PosFnArg, DefaultFnArg> => FnArgList::new(<>),
+}
+
+PosFnArg: PosFnArg<'input> = {
+    Expr => PosFnArg::new(<>),
+}
+
+DefaultFnArg: DefaultFnArg<'input> = {
+    Name Eq Expr => DefaultFnArg::new(<>),
+}
+
+InnerAttrList: InnerAttrList<'input> = InnerAttr* => InnerAttrList::new(<>);
+
+InnerAttr: InnerAttr<'input> = {
+    Hash Bang OpenBracket Name  CloseBracket => InnerAttr::Name(<>),
+
+    Hash Bang OpenBracket Name Eq Expr CloseBracket => InnerAttr::NameEqExpr(<>),
+}
+
+#[inline]
+CommaList<A>: CommaList<A> = <(A Comma)*> <A?> => CommaList::new(<>);
+#[inline]
+CommaListNotEmpty<A>: CommaList<A> = {
+    <(A Comma)+> <A?> => CommaList::new(<>),
+    A => CommaList::new(vec![], Some(<>)),
+}
+
+#[inline]
+CommaListChain<A, B>: (CommaList<A>, CommaList<B>) = {
+    <a: CommaList<A>> => (a, CommaList::new(vec![], None)),
+    <a: (A Comma)*> <b: CommaListNotEmpty<B>> => (CommaList::new(a, None), b),
+}
+
+Name: Name<'input> =
+    // r"[a-zA-Z][a-zA-Z0-9]*"
+    <l: @L> <name: "name"> <r: @R>
+        => Name::new(name, SourceCodeSpan::new(l.try_into().unwrap(), r.try_into().unwrap()));
+
+extern {
+    type Location = usize;
+    type Error = ();
+
+    enum Token<'input> {
+        "(" => Token { tk: Tk::OpenParen, input: <&'input str> },
+        ")" => Token { tk: Tk::CloseParen, input: <&'input str> },
+        "[" => Token { tk: Tk::OpenBracket, input: <&'input str> },
+        "]" => Token { tk: Tk::CloseBracket, input: <&'input str> },
+        "{" => Token { tk: Tk::OpenBrace, input: <&'input str> },
+        "}" => Token { tk: Tk::CloseBrace, input: <&'input str> },
+        "." => Token { tk: Tk::Dot, input: <&'input str> },
+        "," => Token { tk: Tk::Comma, input: <&'input str> },
+        ":" => Token { tk: Tk::Colon, input: <&'input str> },
+        "::" => Token { tk: Tk::Colon2, input: <&'input str> },
+        "#" => Token { tk: Tk::Hash, input: <&'input str> },
+        "+" => Token { tk: Tk::Plus, input: <&'input str> },
+        "-" => Token { tk: Tk::Minus, input: <&'input str> },
+        "*" => Token { tk: Tk::Asterisk, input: <&'input str> },
+        "/" => Token { tk: Tk::Slash, input: <&'input str> },
+        "%" => Token { tk: Tk::Percent, input: <&'input str> },
+        "&&" => Token { tk: Tk::Amp2, input: <&'input str> },
+        "||" => Token { tk: Tk::Pipe2, input: <&'input str> },
+        "!" => Token { tk: Tk::Bang, input: <&'input str> },
+        "@" => Token { tk: Tk::At, input: <&'input str> },
+
+        "=" => Token { tk: Tk::Eq, input: <&'input str> },
+        "<" => Token { tk: Tk::Lt, input: <&'input str> },
+        ">" => Token { tk: Tk::Gt, input: <&'input str> },
+        "<=" => Token { tk: Tk::Lte, input: <&'input str> },
+        ">=" => Token { tk: Tk::Gte, input: <&'input str> },
+        "==" => Token { tk: Tk::Eq2, input: <&'input str> },
+        "!=" => Token { tk: Tk::BangEq, input: <&'input str> },
+
+        "fn" => Token { tk: Tk::FnKw, input: <&'input str> },
+        "struct" => Token { tk: Tk::StructKw, input: <&'input str> },
+        "usn" => Token { tk: Tk::UsnKw, input: <&'input str> },
+
+
+
+        "name" => Token { tk: Tk::Name, input: <&'input str> },
+
+        // r"0b[01]+(i8|u8|i16|u16|i32|u32|i64|u64|usize|isize)?"
+        "bin num" => Token { tk: Tk::BinNum, input: <&'input str> },
+        // 0[0-7_]*(i8|u8|i16|u16|i32|u32|i64|u64|usize|isize)?
+        "oct num" => Token { tk: Tk::OctNum, input: <&'input str> },
+        // [1-9][0-9_]*(i8|u8|i16|u16|i32|u32|i64|u64|usize|isize)?
+        "dec num" => Token { tk: Tk::DecNum, input: <&'input str> },
+        // 0x[0-9a-fA-F_]+(i8|u8|i16|u16|i32|u32|i64|u64|usize|isize)?
+        "hex num" => Token { tk: Tk::HexNum, input: <&'input str> },
+        "newline continuation" => Token { tk: Tk::NewlineContinuation, input: <&'input str>},
+        "newline" => Token { tk: Tk::Newline, input: <&'input str> },
+    }
+}

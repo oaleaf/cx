@@ -1,0 +1,10 @@
+[package]
+name = "cx_lower"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cx_ir = { path = "../cx_ir" }
+cx_syn = { path = "../cx_syn" }
